@@ -10,13 +10,16 @@ ICMP_ECHO_REQUEST = 8
 statsList = []
 seq = 0
 
-def displayHelp():
-    print('usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message')
+
+def displayHelp(hostname):
+    print(f'usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message')
+
 
 def increaseSequence():
     global seq
     seq += 1
     return seq
+
 
 def checksum(source_string):
     csum = 0
@@ -36,6 +39,7 @@ def checksum(source_string):
     answer = ~csum & 0xffff
     answer = answer >> 8 | (answer << 8 & 0xff00)
     return answer
+
 
 def recvOnePing(mySocket, ID, timeout, destAddr):
     time_left = timeout
@@ -64,6 +68,7 @@ def recvOnePing(mySocket, ID, timeout, destAddr):
         if time_left <= 0:
             return f"Request timed out for icmp_seq={increaseSequence()}"
 
+
 def sendOnePing(mySocket, destAddr, ID):
     my_checksum = 0
     header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, my_checksum, ID, 1)
@@ -74,6 +79,7 @@ def sendOnePing(mySocket, destAddr, ID):
     packet = header + data
 
     mySocket.sendto(packet, (destAddr, 1))
+
 
 def doOnePing(destAddr, timeout):
     icmp = getprotobyname("icmp")
@@ -90,6 +96,7 @@ def doOnePing(destAddr, timeout):
     mySocket.close()
     return delay
 
+
 def findStats(list, dest):
     minimum = min(list)
     maximum = max(list)
@@ -102,6 +109,7 @@ def findStats(list, dest):
         stddev = "nan"
 
     return f'round-trip min/avg/max/stddev: {minimum:.2f}/{average:.2f}/{maximum:.2f}/{stddev} ms'
+
 
 def ping(host, timeout=1):
     try:
@@ -125,13 +133,14 @@ def ping(host, timeout=1):
     except Exception as e:
         print(f"\nPinger: cannot resolve {host}: {e}")
 
+
 if __name__ == "__main__":
+    hostInp = sys.argv[1]
     if len(sys.argv) > 1:
-        if sys.argv[1] == '--help' or sys.argv[1] == '-h':
+        if hostInp == '--help' or hostInp == '-h':
             displayHelp()
             sys.exit(0)
         else:
-            hostInp = sys.argv[1]
             ping(hostInp)
     else:
         displayHelp()
