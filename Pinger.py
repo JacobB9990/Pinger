@@ -9,9 +9,24 @@ import statistics
 ICMP_ECHO_REQUEST = 8
 statsList = []
 seq = 0
+packetLost = 0
 
 
-def displayHelp(hostname):
+def endMessage(host, dest):
+    print(f'--- {host} ping statistics ---')
+    print(packetLoss(1))
+    if len(statsList) == 0:
+        sys.exit(0)
+    else:
+        print(findStats(statsList, dest))
+        sys.exit()
+
+
+def getCount(commands):
+    print("count", commands)
+
+
+def displayHelp():
     print(f'usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message')
 
 
@@ -19,6 +34,18 @@ def increaseSequence():
     global seq
     seq += 1
     return seq
+
+
+def packetLoss(code=0):
+    global packetLost
+    if code == 1:
+        try:
+            return (f'{seq} packets transmitted, {len(statsList)} packets received, {(packetLost / seq) * 100}% '
+                    f'packet loss')
+        except ZeroDivisionError:
+            print(f'A zero-division error occurred')
+    else:
+        packetLost += 1
 
 
 def checksum(source_string):
@@ -50,6 +77,7 @@ def recvOnePing(mySocket, ID, timeout, destAddr):
         how_long_in_select = (time.time() - started_select)
 
         if what_ready[0] == []:
+            packetLoss(0)
             return f"Request timed out for icmp_seq={increaseSequence()}"
 
         time_received = time.time()
@@ -66,6 +94,7 @@ def recvOnePing(mySocket, ID, timeout, destAddr):
 
         time_left -= how_long_in_select
         if time_left <= 0:
+            packetLoss(0)
             return f"Request timed out for icmp_seq={increaseSequence()}"
 
 
@@ -111,37 +140,55 @@ def findStats(list, dest):
     return f'round-trip min/avg/max/stddev: {minimum:.2f}/{average:.2f}/{maximum:.2f}/{stddev} ms'
 
 
-def ping(host, timeout=1):
+def ping(host, timeout=1, count=5):
+    global dest
+    dest = host
+
+    nCount = 0
     try:
         dest = gethostbyname(host)
-        print(f"Pinging {host} ({dest}):")
+    except gaierror:
+        print(f"Pinger: cannot resolve {host}: Unknown host")
+        sys.exit(0)
 
-        while True:
-            try:
-                start_time = time.time()
-                delay = doOnePing(dest, timeout)
-                print(delay)
-                elapsed_time = time.time() - start_time
-                time.sleep(max(0, 1 - elapsed_time))
-            except KeyboardInterrupt:
-                print(f'\n--- {host} ping statistics --- \n')
-                if len(statsList) == 0:
-                    sys.exit(0)
-                else:
-                    print(findStats(statsList, dest))
-                    sys.exit()
+    print(f"Pinging {host} ({dest}):")
+
+    try:
+        while count == 0 or nCount < count:
+            nCount += 1
+
+            start_time = time.time()
+            delay = doOnePing(dest, timeout)
+            print(delay)
+            elapsed_time = time.time() - start_time
+            time.sleep(max(0, 1 - elapsed_time))
+
+        endMessage(host, dest)
+
+    except KeyboardInterrupt:
+        print()
+        endMessage(host, dest)
+
+
     except Exception as e:
-        print(f"\nPinger: cannot resolve {host}: {e}")
+        print(f"\nPinger: other error: {e}")
 
 
 if __name__ == "__main__":
-    hostInp = sys.argv[1]
-    if len(sys.argv) > 1:
-        if hostInp == '--help' or hostInp == '-h':
-            displayHelp()
-            sys.exit(0)
-        else:
-            ping(hostInp)
-    else:
+    if len(sys.argv) == 1:
         displayHelp()
-        sys.exit()
+        sys.exit(0)
+
+    hostInp: str = sys.argv[1]
+
+    if len(sys.argv) > 2:
+        command_actions = {
+            '--help': displayHelp(),
+            '-h': displayHelp(),
+            '-c': getCount()
+        }
+        ping(hostInp)
+
+
+    else:
+        ping(hostInp)
