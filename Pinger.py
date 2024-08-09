@@ -1,15 +1,11 @@
 from socket import *
-import sys
-import os
-import time
-import struct
-import select
-import statistics
+import sys, os, time, struct, select, statistics
 
 ICMP_ECHO_REQUEST = 8
 statsList = []
 seq = 0
 packetLost = 0
+userInput = sys.argv
 
 
 def endMessage(host, dest):
@@ -22,12 +18,14 @@ def endMessage(host, dest):
         sys.exit()
 
 
-def getCount(commands):
-    print("count", commands)
+def getCount(command):
+    command = sys.argv
+    if "-c" in command:
+        return int(command[command.index("-c") + 1])
 
 
 def displayHelp():
-    print(f'usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message')
+    print(f'usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message\n\t-c,       \tCount')
 
 
 def increaseSequence():
@@ -175,20 +173,20 @@ def ping(host, timeout=1, count=5):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
+    if len(userInput) == 1:
         displayHelp()
         sys.exit(0)
 
-    hostInp: str = sys.argv[1]
+    hostInp: str = userInput[1]
 
-    if len(sys.argv) > 2:
-        command_actions = {
-            '--help': displayHelp(),
-            '-h': displayHelp(),
-            '-c': getCount()
-        }
-        ping(hostInp)
-
+    if len(userInput) > 2:
+        if "-c" in userInput:
+            ping(hostInp, count=getCount(userInput))
+        elif "-h" in userInput or "--help" in userInput:
+            displayHelp()
+        else:
+            print(f'invalid option: {userInput[2]}')
+            displayHelp()
 
     else:
         ping(hostInp)
