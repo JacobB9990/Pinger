@@ -138,7 +138,7 @@ def findStats(list, dest):
     return f'round-trip min/avg/max/stddev: {minimum:.2f}/{average:.2f}/{maximum:.2f}/{stddev} ms'
 
 
-def ping(host, timeout=1, count=5):
+def ping(host, timeout=1, count=0):
     global dest
     dest = host
 
