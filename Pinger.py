@@ -111,7 +111,7 @@ def sendOnePing(mySocket, destAddr, ID):
 def doOnePing(destAddr, timeout):
     icmp = getprotobyname("icmp")
     try:
-        mySocket = socket(AF_INET, SOCK_RAW, icmp)
+        mySocket = socket(AF_INET, SOCK_DGRAM, icmp)
     except PermissionError as e:
         return f"Operation not permitted: {e}. Run with elevated privileges."
 
