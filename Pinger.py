@@ -1,14 +1,20 @@
+import os
+import select
+import statistics
+import struct
+import sys
+import time
 from socket import *
-import sys, os, time, struct, select, statistics
+from typing import List, Optional
 
-ICMP_ECHO_REQUEST = 8
-statsList = []
-seq = 0
-packetLost = 0
-userInput = sys.argv
+ICMP_ECHO_REQUEST: int = 8
+statsList: List[float] = []
+seq: int = 0
+packetLost: float = 0
+userInput: List[str] = sys.argv
 
 
-def endMessage(host, dest):
+def endMessage(host: str, dest: str) -> None:
     print(f'--- {host} ping statistics ---')
     print(packetLoss(1))
     if len(statsList) == 0:
@@ -18,23 +24,23 @@ def endMessage(host, dest):
         sys.exit()
 
 
-def getCount(command):
-    command = sys.argv
+def getCount(command: List[str]) -> int:
     if "-c" in command:
         return int(command[command.index("-c") + 1])
+    return 0
 
 
-def displayHelp():
+def displayHelp() -> None:
     print(f'usage: Pinger <hostname> [options]\n\nOptions:\n\t--help, -h\tShow this help message\n\t-c,       \tCount')
 
 
-def increaseSequence():
+def increaseSequence() -> int:
     global seq
     seq += 1
     return seq
 
 
-def packetLoss(code=0):
+def packetLoss(code: int = 0) -> Optional[str]:
     global packetLost
     if code == 1:
         try:
@@ -44,15 +50,16 @@ def packetLoss(code=0):
             print(f'A zero-division error occurred')
     else:
         packetLost += 1
+    return None
 
 
-def checksum(source_string):
-    csum = 0
-    count_to = (len(source_string) // 2) * 2
-    count = 0
+def checksum(source_string: bytes) -> int:
+    csum: int = 0
+    count_to: int = (len(source_string) // 2) * 2
+    count: int = 0
 
     while count < count_to:
-        this_val = source_string[count + 1] * 256 + source_string[count]
+        this_val: int = source_string[count + 1] * 256 + source_string[count]
         csum += this_val
         count += 2
 
@@ -61,34 +68,39 @@ def checksum(source_string):
 
     csum = (csum >> 16) + (csum & 0xffff)
     csum += (csum >> 16)
-    answer = ~csum & 0xffff
+    answer: int = ~csum & 0xffff
     answer = answer >> 8 | (answer << 8 & 0xff00)
     return answer
 
 
-def recvOnePing(mySocket, ID, timeout, destAddr):
-    time_left = timeout
+def recvOnePing(mySocket: socket, ID: int, timeout: int, destAddr: str) -> str:
+    time_left: float = timeout
 
     while True:
-        started_select = time.time()
+        started_select: float = time.time()
         what_ready = select.select([mySocket], [], [], time_left)
-        how_long_in_select = (time.time() - started_select)
+        how_long_in_select: float = time.time() - started_select
 
-        if what_ready[0] == []:
+        if not what_ready[0]:
             packetLoss(0)
             return f"Request timed out for icmp_seq={increaseSequence()}"
 
-        time_received = time.time()
+        time_received: float = time.time()
+        rec_packet: bytes
+        addr: tuple
         rec_packet, addr = mySocket.recvfrom(1024)
 
-        icmp_header = rec_packet[20:28]
-        type, code, checksum, packet_ID, sequence = struct.unpack("bbHHh", icmp_header)
+        ip_header: bytes = rec_packet[:20]
+        ttl: int = ip_header[8]
+
+        icmp_header: bytes = rec_packet[20:28]
+        type, code, checksum_val, packet_ID, sequence = struct.unpack("bbHHh", icmp_header)
 
         if packet_ID == ID:
-            time_sent = struct.unpack("d", rec_packet[28:28 + struct.calcsize("d")])[0]
-            delay = (time_received - time_sent) * 1000
+            time_sent: float = struct.unpack("d", rec_packet[28:28 + struct.calcsize("d")])[0]
+            delay: float = (time_received - time_sent) * 1000
             statsList.append(delay)
-            return f"{len(rec_packet)} bytes from {destAddr}: icmp_seq={increaseSequence()} time={delay:.2f} ms"
+            return f"{len(rec_packet)} bytes from {destAddr}: icmp_seq={increaseSequence()} ttl={ttl} time={delay:.2f} ms"
 
         time_left -= how_long_in_select
         if time_left <= 0:
@@ -96,53 +108,50 @@ def recvOnePing(mySocket, ID, timeout, destAddr):
             return f"Request timed out for icmp_seq={increaseSequence()}"
 
 
-def sendOnePing(mySocket, destAddr, ID):
-    my_checksum = 0
-    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, my_checksum, ID, 1)
-    data = struct.pack("d", time.time())
+def sendOnePing(mySocket: socket, destAddr: str, ID: int) -> None:
+    my_checksum: int = 0
+    header: bytes = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, my_checksum, ID, 1)
+    data: bytes = struct.pack("d", time.time())
     my_checksum = checksum(header + data)
 
     header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, htons(my_checksum), ID, 1)
-    packet = header + data
+    packet: bytes = header + data
 
     mySocket.sendto(packet, (destAddr, 1))
 
 
-def doOnePing(destAddr, timeout):
-    icmp = getprotobyname("icmp")
+def doOnePing(destAddr: str, timeout: int) -> str:
+    icmp: int = getprotobyname("icmp")
     try:
-        mySocket = socket(AF_INET, SOCK_DGRAM, icmp)
+        mySocket: socket = socket(AF_INET, SOCK_DGRAM, icmp)
     except PermissionError as e:
         return f"Operation not permitted: {e}. Run with elevated privileges."
 
-    myID = os.getpid() & 0xFFFF
+    myID: int = os.getpid() & 0xFFFF
 
     sendOnePing(mySocket, destAddr, myID)
-    delay = recvOnePing(mySocket, myID, timeout, destAddr)
+    delay: str = recvOnePing(mySocket, myID, timeout, destAddr)
 
     mySocket.close()
     return delay
 
 
-def findStats(list, dest):
-    minimum = min(list)
-    maximum = max(list)
-    average = sum(list) / len(list)
+def findStats(list: List[float], dest: str) -> str:
+    minimum: float = min(list)
+    maximum: float = max(list)
+    average: float = sum(list) / len(list)
 
     if len(list) > 1:
-        stddev = statistics.stdev(list)
-        stddev = f'{stddev:.2f}'
+        stddev: float = statistics.stdev(list)
+        stddev = round(stddev, 3)
     else:
-        stddev = "nan"
+        stddev: str = "nan"
 
-    return f'round-trip min/avg/max/stddev: {minimum:.2f}/{average:.2f}/{maximum:.2f}/{stddev} ms'
+    return f'round-trip min/avg/max/stddev: {minimum:.3f}/{average:.3f}/{maximum:.3f}/{stddev} ms'
 
 
-def ping(host, timeout=1, count=0):
-    global dest
-    dest = host
-
-    nCount = 0
+def ping(host: str, timeout: int = 1, count: int = 0) -> None:
+    nCount: int = 0
     try:
         dest = gethostbyname(host)
     except gaierror:
@@ -155,10 +164,10 @@ def ping(host, timeout=1, count=0):
         while count == 0 or nCount < count:
             nCount += 1
 
-            start_time = time.time()
-            delay = doOnePing(dest, timeout)
+            start_time: float = time.time()
+            delay: str = doOnePing(dest, timeout)
             print(delay)
-            elapsed_time = time.time() - start_time
+            elapsed_time: int = int(time.time() - start_time)
             time.sleep(max(0, 1 - elapsed_time))
 
         endMessage(host, dest)
@@ -166,7 +175,6 @@ def ping(host, timeout=1, count=0):
     except KeyboardInterrupt:
         print()
         endMessage(host, dest)
-
 
     except Exception as e:
         print(f"\nPinger: other error: {e}")
@@ -179,14 +187,16 @@ if __name__ == "__main__":
 
     hostInp: str = userInput[1]
 
-    if len(userInput) > 2:
+    if len(userInput) >= 2:
         if "-c" in userInput:
-            ping(hostInp, count=getCount(userInput))
+            try:
+                ping(hostInp, count=getCount(userInput))
+            except IndexError:
+                displayHelp()
         elif "-h" in userInput or "--help" in userInput:
             displayHelp()
         else:
-            print(f'invalid option: {userInput[2]}')
-            displayHelp()
+            ping(hostInp, count=getCount(userInput))
 
     else:
         ping(hostInp)
