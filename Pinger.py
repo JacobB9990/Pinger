@@ -4,7 +4,7 @@ import statistics
 import struct
 import sys
 import time
-from socket import socket, getprotobyname, AF_INET, SOCK_DGRAM
+from socket import socket, getprotobyname, AF_INET, SOCK_DGRAM, SOCK_RAW
 from socket import gethostbyname, gaierror, htons
 from typing import List, Optional
 
@@ -119,7 +119,7 @@ def sendOnePing(mySocket: socket, destAddr: str, ID: int, sequence: int) -> None
 def doOnePing(destAddr: str, timeout: int, sequence: int) -> str:
     icmp: int = getprotobyname("icmp")
     try:
-        mySocket: socket = socket(AF_INET, SOCK_DGRAM, icmp)
+        mySocket: socket = socket(AF_INET, SOCK_RAW, icmp)
     except PermissionError as e:
         return f"Operation not permitted: {e}. Run with elevated privileges."
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         except (ValueError, IndexError):
             displayHelp()
             sys.exit(0)
-    if '--flood' in args or '-f' in args:
+    if '-f' in args or '--flood' in args:
         flood = True
     if '-h' in args or '--help' in args:
         displayHelp()
